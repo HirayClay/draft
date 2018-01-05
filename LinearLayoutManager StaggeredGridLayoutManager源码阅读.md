@@ -1,5 +1,5 @@
 ---
-title: LinearLayoutManager StaggeredGridLayoutManager源码阅读
+title: LinearLayoutManager源码阅读
 date: 2017-12-19 15:45:56
 tags: 
     - RecyclerView LayoutManager LinearLayoutManager
@@ -8,7 +8,7 @@ tags:
 ---
 
 
-实现自定义的通用的LayoutManager，但是卡住了，遂看下Android 官方的几种LayoutManager是如何实现的，大致的以及一些细节都看懂了，但是还是没找到什么好办法解决自己的问题，不如趁着热度把自己的分析过程写下来，也给其他需要的Androider.其实真的要对RecyclerView有个全面的认识，其实LayoutManager、Adapter、动画以及测量流程等细节都是要清楚的，因为虽然说RV给人使用上非常灵活解耦，但是其实内部也是这几者的紧密配合才达到的效果，所以有一点不明白其他地方可能也就会很模糊看不下去。也不细分章节了，就按照滚动的流程来写。至于为什么从滚动开始分析，是因为看源码还是讲究切入点，从RecyclerView的滑动开始是最佳切入点，很直观。
+实现自定义的通用的LayoutManager，但是卡住了，遂看下Android 官方的几种LayoutManager是如何优雅实现的，大致的以及一些细节都看懂了，但是还是没找到什么好办法解决自己的问题，不如趁着热度把自己的分析过程写下来，也给其他需要的Androider.其实真的要对RecyclerView有个全面的认识，其实LayoutManager、Adapter、动画以及测量流程等细节都是要清楚的，因为虽然说RV给人使用上非常灵活解耦，但是其实内部也是这几者的紧密配合才达到的效果，所以有一点不明白其他地方可能也就会很模糊看不下去。也不细分章节了，就按照滚动的流程来写。至于为什么从滚动开始分析，是因为看源码还是讲究切入点，从RecyclerView的滑动开始是最佳切入点，很直观。
 
 由于自定的LayoutManager如果要(肯定要，不然还定义啥)支持滚动都必须至少重写以下两个方法中的一个，并且返回true，分别表示支持垂直滚动和水平滚动
 ```java
@@ -250,5 +250,7 @@ mExtra 有些情况下用到，表示距离信息，用于某些情况下的滚�
             }
         }
 ```
-只要还有可用空间就依次取 View 并添加layout出来
+只要还有可用空间就依次取 View 并添加layout出来，之后更新mOffset和mAvailable,当然如果某个view是有焦点的，那么直接结束
+
 ----继续写
+看LayoutChunk干了，顾名思义，就是layout小块的意思，就是把单个的itemView放置到合适的位置，返回此次的接过LayoutResult
