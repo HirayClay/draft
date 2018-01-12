@@ -72,7 +72,7 @@ mCurrentPosition  表示获取View的起始索引，在layout View的时候循�
 
 mItemDirection  获取item 数据的方向，是从前到后（值为1），还是从后往前（值为-1），本篇分析的是正序情况
 
-mExtra 有些情况下用到，表示距离信息，用于某些情况下的滚动，正常滚动是它的值是0，不是很重要这个值-_-
+mExtra 在LayoutManager支持predictive动画的时候这个值很有用，具体的需要了解RV的动画机制才明白这个值怎么回事，简单的说就是即使一个item此时(当他即将进入RV可见范围时)对用户不可见，但是还是得把他layout出来，虽然已经超出了RV的边界用户看不到，这样做的目的是为了更好的动画体验（因为有两次layout，一次pre-layout 一次post-layout），不然就只能简单的使用FadeIn FadeOut动画。只有当item add remove发生时才有值，一般为0
 
 再回过来看updateLayoutState方法(并不喜欢贴太长串的代码。。。)
 ```java
@@ -253,4 +253,9 @@ mExtra 有些情况下用到，表示距离信息，用于某些情况下的滚�
 只要还有可用空间就依次取 View 并添加layout出来，之后更新mOffset和mAvailable,当然如果某个view是有焦点的，那么直接结束
 
 ----继续写
-看LayoutChunk干了，顾名思义，就是layout小块的意思，就是把单个的itemView放置到合适的位置，返回此次的接过LayoutResult
+看LayoutChunk方法，顾名思义，就是layout小块的意思，就是把单个的itemView放置到合适的位置，并且传入了一个LayoutResult用于记录放置Item后的信息，就几个字段：
+ mConsumed 消耗的距离
+ mFinished 是否结束layout
+ mIgnoreConsumed 是否忽略此次消耗的距离
+ mFocusable 当前item是否有焦点
+
