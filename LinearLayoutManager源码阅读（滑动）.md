@@ -1,5 +1,5 @@
 ---
-title: LinearLayoutManager源码阅读
+title: LinearLayoutManager源码阅读(滚动分析)
 date: 2017-12-19 15:45:56
 tags: 
     - RecyclerView LayoutManager LinearLayoutManager
@@ -8,7 +8,7 @@ tags:
 ---
 
 
-实现自定义的通用的LayoutManager，但是卡住了，遂看下Android 官方的几种LayoutManager是如何优雅实现的，大致的以及一些细节都看懂了，但是还是没找到什么好办法解决自己的问题，不如趁着热度把自己的分析过程写下来，也给其他需要的Androider.其实真的要对RecyclerView有个全面的认识，其实LayoutManager、Adapter、动画以及测量流程等细节都是要清楚的，因为虽然说RV给人使用上非常灵活解耦，但是其实内部也是这几者的紧密配合才达到的效果，所以有一点不明白其他地方可能也就会很模糊看不下去。也不细分章节了，就按照滚动的流程来写。至于为什么从滚动开始分析，是因为看源码还是讲究切入点，从RecyclerView的滑动开始是最佳切入点，很直观。
+实现自定义的通用的LayoutManager，但是卡住了，遂看下Android 官方的几种LayoutManager是如何优雅实现的，大致的以及一些细节都看懂了，但是还是没找到什么好办法解决自己的问题，不如趁着热度把自己的分析过程写下来，也给其他需要的Androider.其实真的要对RecyclerView有个全面的认识，其实LayoutManager、Adapter、动画以及测量流程等细节都是要清楚的，因为虽然说RV给人使用上非常灵活解耦，但是其实内部也是这几者的紧密配合才达到的效果，所以有一点不明白其他地方可能也就会很模糊看不下去。也不细分章节了，就按照滚动的流程来写。至于为什么从滚动开始分析，是因为看源码还是讲究切入点，从RecyclerView的滑动开始是最佳切入点，很直观，要是第一次直接就从onLayoutChildren看起，我觉得看不了几行就得放弃。当然这篇文章的内容很多没说清楚的其实都是onLayoutChildren的一些逻辑，所以都略过了，只关注滑动。
 
 由于自定的LayoutManager如果要(肯定要，不然还定义啥)支持滚动都必须至少重写以下两个方法中的一个，并且返回true，分别表示支持垂直滚动和水平滚动
 ```java
@@ -64,15 +64,17 @@ tags:
 写了部分注释，具体分析一下updateLayoutState方法
 分析这个方法前，先看下LayoutState这个类，了解一下我们需要关注的几个重要参数的含义
 
-mRecycle 表示是否需要回收View
+mRecycle 表示是否需要回收View,滑动情况下这个值是true，但是在有item 添加删除的情况是false，因为锚点什么的得靠view来确定，不能回收
+
 mOffset   layout View时候的起始坐标(垂直方向的LinearLayoutManager 表示y值)，e.g.比如发生滑动后，下一个item需要显示出来，那么mOffset的值就等于最后一个可见item的bottom值(不考虑margin，向上滑动)
+
 mAvailable 表示可用距离，在layout View的时候用到
 
 mCurrentPosition  表示获取View的起始索引，在layout View的时候循环取View的时候用到
 
 mItemDirection  获取item 数据的方向，是从前到后（值为1），还是从后往前（值为-1），本篇分析的是正序情况
 
-mExtra 在LayoutManager支持predictive动画的时候这个值很有用，具体的需要了解RV的动画机制才明白这个值怎么回事，简单的说就是即使一个item此时(当他即将进入RV可见范围时)对用户不可见，但是还是得把他layout出来，虽然已经超出了RV的边界用户看不到，这样做的目的是为了更好的动画体验（因为有两次layout，一次pre-layout 一次post-layout），不然就只能简单的使用FadeIn FadeOut动画。只有当item add remove发生时才有值，一般为0
+mExtra 在LayoutManager支持predictive动画的时候这个值很有用，具体的需要了解RV的动画机制才明白这个值怎么回事，简单的说就是即使一个item此时(当他即将进入RV可见范围时)对用户不可见，但是还是得把他layout出来，虽然已经超出了RV的边界用户看不到，这样做的目的是为了更好的动画体验（因为需要两次layout，一次pre-layout 一次post-layout来确定动画的起始和终止位置，不然就只能做最简单的fadeIn fadeOut。只有当item add remove发生时才有值，一般为0
 
 再回过来看updateLayoutState方法(并不喜欢贴太长串的代码。。。)
 ```java
@@ -113,7 +115,7 @@ mExtra 在LayoutManager支持predictive动画的时候这个值很有用，具�
         mLayoutState.mScrollingOffset = scrollingOffset;
     }
 ```
-前面行就是简单的赋值更新状态，然后是根据layoutDirection的方向进行其他参数的计算，我们这里是分析的手指上滑，对应的layoutDireciton是LAYOUT_END，我们进入layoutDirection == LayoutState.LAYOUT_END成立的情况下去看：
+前面几行就是简单的赋值更新状态，然后是根据layoutDirection的方向进行其他参数的计算，我们这里是分析的手指上滑，对应的layoutDireciton是LAYOUT_END，我们进入layoutDirection == LayoutState.LAYOUT_END成立的情况下去看：
 
  1.通过getChildClosestToEnd方法拿到RV最接近End的child(如果是水平布局，那么end就是RV的right，垂直布局end就是RV的bottom)
 
@@ -252,10 +254,11 @@ mExtra 在LayoutManager支持predictive动画的时候这个值很有用，具�
 ```
 只要还有可用空间就依次取 View 并添加layout出来，之后更新mOffset和mAvailable,当然如果某个view是有焦点的，那么直接结束
 
-----继续写
 看LayoutChunk方法，顾名思义，就是layout小块的意思，就是把单个的itemView放置到合适的位置，并且传入了一个LayoutResult用于记录放置Item后的信息，就几个字段：
  mConsumed 消耗的距离
  mFinished 是否结束layout
- mIgnoreConsumed 是否忽略此次消耗的距离
+ mIgnoreConsumed 是否忽略此次消耗的距离，滑动情况下这个值一直都是false
  mFocusable 当前item是否有焦点
+
+ 
 
