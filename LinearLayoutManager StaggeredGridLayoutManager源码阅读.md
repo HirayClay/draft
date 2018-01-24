@@ -262,6 +262,5 @@ mExtra 在LayoutManager支持predictive动画的时候这个值很有用，具�
  mIgnoreConsumed 是否忽略此次消耗的距离，滑动情况下这个值一直都是false
  mFocusable 当前item是否有焦点
 
-然后看一下layoutChunk方法里面的逻辑，也没什么，就是测量，然后计算left top right bottom值。有一段逻辑比较重要，判断了mScrapList 是否为null，如果是null就调用了addDisappearingView方法，反之调用了addView;addView方法不用说就是简单的添加了View，但是addDisappearingView就是告诉RV，添加的这个View是马上就要移出屏幕的，注意是不可见了并不代表就是item被移除了也有可能是在屏幕之外。好了，我们再回头想象为什么是判断mScrapList为null就调用addDisappearingView。具体原因是mScapList其实绝大部分情况都是null，只有在存在item add 或者update(就是加入了新的item或者是原有的item 更新了变大了，导致其他item移出屏幕之外)的时候mScrapList才有值，而这个时候
  
 
